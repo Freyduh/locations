@@ -1,0 +1,54 @@
+name: Publish approved location
+on:
+  issues:
+    types: [labeled]
+concurrency: publish-location
+permissions:
+  contents: write
+  issues: write
+jobs:
+  publish:
+    if: github.event.label.name == 'approved'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const issue = context.payload.issue;
+            const fail = async (msg) => {
+              await github.rest.issues.createComment({...context.repo, issue_number: issue.number, body: msg});
+              core.setFailed(msg);
+            };
+            const m = (issue.body || '').match(/```json\s*([\s\S]*?)```/);
+            if (!m) return fail('No location data found in this issue.');
+            let d; try { d = JSON.parse(m[1]); } catch { return fail('Location data is not valid.'); }
+            if (!(d.x >= 0 && d.x <= 1 && d.y >= 0 && d.y <= 1) || !/^https:\/\//.test(d.link)) return fail('Invalid location data.');
+            const res = await fetch(d.link, {redirect: 'follow'});
+            if (!res.ok) return fail('Could not download the picture link.');
+            const type = (res.headers.get('content-type') || '').split(';')[0].trim();
+            const ext = {'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif'}[type];
+            if (!ext) return fail('That link is not a jpg, png, webp or gif picture (got "' + type + '").');
+            const buf = Buffer.from(await res.arrayBuffer());
+            if (buf.length > 6 * 1024 * 1024) return fail('Picture is bigger than 6 MB.');
+            fs.mkdirSync('photos', {recursive: true});
+            const file = `photos/${issue.number}.${ext}`;
+            fs.writeFileSync(file, buf);
+            const list = JSON.parse(fs.readFileSync('locations.json', 'utf8'));
+            list.push({x: d.x, y: d.y, title: String(d.title).slice(0, 80), img: file});
+            fs.writeFileSync('locations.json', JSON.stringify(list, null, 1) + '\n');
+      - name: Commit
+        run: |
+          git config user.name "map-bot"
+          git config user.email "map-bot@users.noreply.github.com"
+          git add photos locations.json
+          git commit -m "Add location from issue #${{ github.event.issue.number }}"
+          git pull --rebase
+          git push
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const n = context.payload.issue.number;
+            await github.rest.issues.createComment({...context.repo, issue_number: n, body: 'Published. It will show on the map in about a minute.'});
+            await github.rest.issues.update({...context.repo, issue_number: n, state: 'closed'});
