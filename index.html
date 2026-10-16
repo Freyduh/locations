@@ -52,7 +52,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 </div>
 <script>
 /* ============ SETTINGS ============ */
-const _URL = "https://locations.freyaeyo.workers.dev";   // your Cloudflare Worker URL (see SETUP.md)
+const RELAY_URL = "https://locations.freyaeyo.workers.dev";   // your Cloudflare Worker URL (see SETUP.md)
 
 /* ============ MAP ============ */
 const view=document.getElementById('view'),world=document.getElementById('world'),map=document.getElementById('map');
@@ -63,7 +63,9 @@ function apply(){world.style.transform=`translate(${tx}px,${ty}px) scale(${k})`;
 function clampPan(){const vw=view.clientWidth,vh=view.clientHeight;tx=Math.min(vw*.5,Math.max(vw*.5-W*k,tx));ty=Math.min(vh*.5,Math.max(vh*.5-H*k,ty))}
 function zoomAt(px,py,f){const n=Math.min(8,Math.max(Math.min(view.clientWidth/W,view.clientHeight/H)*.9,k*f));tx=px-(px-tx)*(n/k);ty=py-(py-ty)*(n/k);k=n;clampPan();apply()}
 function fit(){k=Math.min(view.clientWidth/W,view.clientHeight/H);tx=(view.clientWidth-W*k)/2;ty=(view.clientHeight-H*k)/2;apply()}
-function addStar(l,cls){const d=document.createElement('div');d.className='star'+(cls?' '+cls:'');d.style.left=l.x*W+'px';d.style.top=l.y*H+'px';d.innerHTML=STAR;d.firstChild.addEventListener('click',e=>{e.stopPropagation();if(!adding)showInfo(l)});world.appendChild(d);return d}
+const stars=[];
+function addStar(l,cls){const d=document.createElement('div');d.className='star'+(cls?' '+cls:'');d.style.left=l.x*W+'px';d.style.top=l.y*H+'px';d.innerHTML=STAR;world.appendChild(d);if(!cls)stars.push(l);return d}
+function pickStar(e){const r=view.getBoundingClientRect();let best=null,bd=18;for(const l of stars){const sx=r.left+tx+l.x*W*k,sy=r.top+ty+l.y*H*k;const d=Math.hypot(e.clientX-sx,e.clientY-sy);if(d<bd){bd=d;best=l}}if(best)showInfo(best);else $('info').style.display='none'}
 function showInfo(l){$('form').style.display='none';$('iTitle').textContent=l.title||'Location';const i=$('iImg');if(l.img){i.src=l.img;i.style.display='block'}else i.style.display='none';$('iNote').textContent=l.img?'':'No picture yet.';$('info').style.display='block'}
 function init(){W=map.naturalWidth;H=map.naturalHeight;map.width=W;map.height=H;fit();loadLocations()}
 function loadLocations(){fetch('locations.json',{cache:'no-store'}).then(r=>r.json()).then(a=>{a.forEach(l=>addStar(l));$('count').textContent=a.length+(a.length===1?' location':' locations')}).catch(()=>{$('count').textContent='Could not load locations'})}
@@ -76,7 +78,7 @@ view.addEventListener('pointerdown',e=>{view.setPointerCapture(e.pointerId);pts.
 view.addEventListener('pointermove',e=>{const p=pts.get(e.pointerId);if(!p)return;
   if(pts.size===1){tx+=e.clientX-p.x;ty+=e.clientY-p.y;moved+=Math.abs(e.clientX-p.x)+Math.abs(e.clientY-p.y);p.x=e.clientX;p.y=e.clientY;clampPan();apply()}
   else{p.x=e.clientX;p.y=e.clientY;const [a,b]=[...pts.values()];const d=Math.hypot(a.x-b.x,a.y-b.y);if(lastD)zoomAt((a.x+b.x)/2,(a.y+b.y)/2,d/lastD);lastD=d;moved=99}});
-const up=e=>{const wasTap=pts.size===1&&moved<6;pts.delete(e.pointerId);lastD=0;if(wasTap&&adding&&e.type==='pointerup')place(e)};
+const up=e=>{const wasTap=pts.size===1&&moved<6;pts.delete(e.pointerId);lastD=0;if(wasTap&&e.type==='pointerup'){if(adding)place(e);else pickStar(e)}};
 view.addEventListener('pointerup',up);view.addEventListener('pointercancel',up);
 view.addEventListener('wheel',e=>{e.preventDefault();zoomAt(e.clientX,e.clientY,e.deltaY<0?1.2:1/1.2)},{passive:false});
 $('zin').onclick=()=>zoomAt(view.clientWidth/2,view.clientHeight/2,1.5);
@@ -95,9 +97,9 @@ $('send').onclick=async()=>{
   if(!pending)return;
   if(!title){$('fMsg').textContent='Add a name for this location.';return}
   if(!/^https:\/\/\S+$/i.test(link)){$('fMsg').textContent='Paste a link to a picture (starting with https://).';return}
-  if(!_URL){$('fMsg').textContent='Sending is not set up yet. Add your  URL in the code.';return}
+  if(!RELAY_URL){$('fMsg').textContent='Sending is not set up yet. Add your relay URL in the code.';return}
   $('send').disabled=true;$('fMsg').textContent='Sending...';
-  try{const r=await fetch(_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({x:pending.x,y:pending.y,title,link,website:$('fWeb').value})});
+  try{const r=await fetch(RELAY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({x:pending.x,y:pending.y,title,link,website:$('fWeb').value})});
     if(!r.ok)throw 0;$('fMsg').textContent='Sent. It will show on the map once approved.';setTimeout(()=>{resetForm();$('send').disabled=false},2200)}
   catch(_){$('fMsg').textContent='Could not send. Try again.';$('send').disabled=false}};
 </script></body></html>
