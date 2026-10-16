@@ -52,7 +52,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 </div>
 <script>
 /* ============ SETTINGS ============ */
-const RELAY_URL = "locations.freyaeyo.workers.dev";   // your Cloudflare Worker URL (see SETUP.md)
+const _URL = "https://locations.freyaeyo.workers.dev";   // your Cloudflare Worker URL (see SETUP.md)
 
 /* ============ MAP ============ */
 const view=document.getElementById('view'),world=document.getElementById('world'),map=document.getElementById('map');
@@ -95,9 +95,9 @@ $('send').onclick=async()=>{
   if(!pending)return;
   if(!title){$('fMsg').textContent='Add a name for this location.';return}
   if(!/^https:\/\/\S+$/i.test(link)){$('fMsg').textContent='Paste a link to a picture (starting with https://).';return}
-  if(!RELAY_URL){$('fMsg').textContent='Sending is not set up yet. Add your relay URL in the code.';return}
+  if(!_URL){$('fMsg').textContent='Sending is not set up yet. Add your  URL in the code.';return}
   $('send').disabled=true;$('fMsg').textContent='Sending...';
-  try{const r=await fetch(RELAY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({x:pending.x,y:pending.y,title,link,website:$('fWeb').value})});
+  try{const r=await fetch(_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({x:pending.x,y:pending.y,title,link,website:$('fWeb').value})});
     if(!r.ok)throw 0;$('fMsg').textContent='Sent. It will show on the map once approved.';setTimeout(()=>{resetForm();$('send').disabled=false},2200)}
   catch(_){$('fMsg').textContent='Could not send. Try again.';$('send').disabled=false}};
 </script></body></html>
